@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agentes IA · Inditex Product</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --c1: #0f0c29; --c2: #302b63; --c3: #24243e;
+      --accent: #a78bfa; --accent2: #38bdf8; --accent3: #f472b6;
+      --glass: rgba(255,255,255,0.07);
+      --border: rgba(255,255,255,0.13);
+      font-size: 16px;
+    }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--c1); color: #f1f5f9; }
+
+    /* ── Slides wrapper ── */
+    #deck { width: 100%; height: 100%; position: relative; }
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 3rem 5vw;
+      opacity: 0; pointer-events: none;
+      transition: opacity .5s ease, transform .5s ease;
+      transform: translateX(60px);
+      background: linear-gradient(135deg, var(--c1) 0%, var(--c2) 50%, var(--c3) 100%);
+      overflow: hidden;
+    }
+    .slide.active {
+      opacity: 1; pointer-events: all; transform: translateX(0);
+    }
+    .slide.exit-left  { transform: translateX(-60px); opacity: 0; }
+    .slide.exit-right { transform: translateX(60px);  opacity: 0; }
+
+    /* ── Noise overlay ── */
+    .slide::before {
+      content: ''; position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Floating blobs ── */
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(80px); opacity: .35; animation: drift 12s ease-in-out infinite alternate;
+    }
+    @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(30px,20px) scale(1.1); } }
+
+    /* ── Progress bar ── */
+    #progress { position: fixed; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3)); transition: width .4s ease; z-index: 100; }
+
+    /* ── Slide counter ── */
+    #counter { position: fixed; bottom: 1rem; right: 1.5rem; font-size: .8rem; opacity: .45; z-index: 100; letter-spacing: .08em; }
+
+    /* ── Navigation hints ── */
+    #nav-hints { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); display: flex; gap: .5rem; z-index: 100; opacity: .35; font-size: .75rem; }
+    #nav-hints span { border: 1px solid var(--border); border-radius: 4px; padding: .15rem .45rem; }
+
+    /* ── Typography ── */
+    .tag { font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); background: rgba(167,139,250,.15); border: 1px solid rgba(167,139,250,.3); border-radius: 99px; padding: .25rem .8rem; display: inline-block; margin-bottom: 1rem; animation: fadeUp .6s both; }
+    h1 { font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 800; line-height: 1.1; background: linear-gradient(135deg, #fff 30%, var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: fadeUp .7s .1s both; }
+    h2 { font-size: clamp(1.6rem, 3.5vw, 2.6rem); font-weight: 700; background: linear-gradient(135deg, #fff 40%, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 1.5rem; animation: fadeUp .6s both; }
+    p.lead { font-size: clamp(1rem, 1.8vw, 1.25rem); color: #cbd5e1; max-width: 680px; text-align: center; line-height: 1.7; animation: fadeUp .7s .2s both; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Glass card ── */
+    .card {
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: 1.25rem; padding: 1.5rem 2rem;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      animation: fadeUp .7s both;
+      transition: transform .25s, box-shadow .25s;
+      position: relative; z-index: 1;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,.35); }
+
+    /* ── Grid helpers ── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; width: 100%; max-width: 900px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; width: 100%; max-width: 960px; }
+    @media (max-width: 680px) { .grid2,.grid3 { grid-template-columns: 1fr; } }
+
+    /* ── Pill / badge ── */
+    .pill { display: inline-block; font-size: .72rem; padding: .2rem .65rem; border-radius: 99px; font-weight: 600; margin: .2rem; }
+    .pill-purple { background: rgba(167,139,250,.2); color: var(--accent); border: 1px solid rgba(167,139,250,.4); }
+    .pill-blue   { background: rgba(56,189,248,.2);  color: var(--accent2); border: 1px solid rgba(56,189,248,.4); }
+    .pill-pink   { background: rgba(244,114,182,.2); color: var(--accent3); border: 1px solid rgba(244,114,182,.4); }
+
+    /* ── Icon circle ── */
+    .icon-circle { width: 3rem; height: 3rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+    .ic-purple { background: rgba(167,139,250,.2); }
+    .ic-blue   { background: rgba(56,189,248,.2); }
+    .ic-pink   { background: rgba(244,114,182,.2); }
+    .ic-green  { background: rgba(52,211,153,.2); }
+
+    /* ── Row item ── */
+    .row-item { display: flex; align-items: flex-start; gap: .9rem; margin-bottom: .9rem; animation: fadeUp .6s both; }
+    .row-item h4 { font-size: .95rem; color: #f1f5f9; margin-bottom: .2rem; }
+    .row-item p  { font-size: .82rem; color: #94a3b8; line-height: 1.5; }
+
+    /* ── Checklist ── */
+    .checklist { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; max-width: 860px; width: 100%; }
+    @media (max-width: 680px) { .checklist { grid-template-columns: 1fr; } }
+    .checklist li { display: flex; align-items: center; gap: .7rem; background: var(--glass); border: 1px solid var(--border); border-radius: .75rem; padding: .7rem 1rem; font-size: .88rem; color: #cbd5e1; cursor: pointer; transition: background .2s, border-color .2s; animation: fadeUp .5s both; }
+    .checklist li:hover { background: rgba(255,255,255,.1); }
+    .checklist li.done { border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); color: #6ee7b7; }
+    .checklist li .chk { width: 1.2rem; height: 1.2rem; border-radius: 50%; border: 2px solid #475569; display: flex; align-items: center; justify-content: center; font-size: .7rem; flex-shrink: 0; transition: background .2s, border-color .2s; }
+    .checklist li.done .chk { background: #34d399; border-color: #34d399; }
+
+    /* ── Step boxes ── */
+    .steps { display: flex; flex-direction: column; gap: .8rem; width: 100%; max-width: 820px; }
+    .step { display: flex; align-items: flex-start; gap: 1rem; background: var(--glass); border: 1px solid var(--border); border-radius: 1rem; padding: 1rem 1.25rem; animation: fadeUp .6s both; }
+    .step-num { min-width: 2rem; height: 2rem; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
+    .step h4 { font-size: .92rem; color: #f1f5f9; margin-bottom: .15rem; }
+    .step p  { font-size: .8rem; color: #94a3b8; line-height: 1.5; }
+
+    /* ── Concept grid (slide 1) ── */
+    .concept-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; max-width: 960px; width: 100%; }
+    @media (max-width: 680px) { .concept-grid { grid-template-columns: 1fr; } }
+    .concept-card { background: var(--glass); border: 1px solid var(--border); border-radius: 1.1rem; padding: 1.25rem; text-align: center; animation: fadeUp .6s both; transition: transform .25s, box-shadow .25s; }
+    .concept-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 16px 36px rgba(0,0,0,.3); }
+    .concept-card .emoji { font-size: 2rem; margin-bottom: .5rem; display: block; }
+    .concept-card h4 { font-size: .95rem; color: var(--accent); margin-bottom: .4rem; }
+    .concept-card p  { font-size: .78rem; color: #94a3b8; line-height: 1.5; }
+
+    /* ── Pulse ring ── */
+    .pulse-ring { position: absolute; border-radius: 50%; border: 2px solid rgba(167,139,250,.3); animation: pulseRing 3s ease-out infinite; }
+    @keyframes pulseRing { 0%{transform:scale(.8);opacity:.8;} 100%{transform:scale(2);opacity:0;} }
+
+    /* ── Floating particles ── */
+    .particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+    .particle { position: absolute; border-radius: 50%; animation: floatParticle linear infinite; }
+    @keyframes floatParticle { 0%{transform:translateY(110%) rotate(0deg);opacity:0;} 10%{opacity:.6;} 90%{opacity:.3;} 100%{transform:translateY(-10%) rotate(720deg);opacity:0;} }
+
+    /* ── Hero number (slide 0) ── */
+    .hero-stat { font-size: 5rem; font-weight: 900; -webkit-background-clip: text; background-clip: text; line-height: 1; animation: fadeUp .8s .3s both; }
+
+    /* ── Section title bar ── */
+    .section-title { text-align: center; margin-bottom: 1.6rem; z-index: 1; }
+
+    /* ── Agent logo badges ── */
+    .agent-badge { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
+    .agent-badge .logo-box { width: 4rem; height: 4rem; border-radius: 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+
+    /* ── Table ── */
+    .mcp-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .mcp-table th { color: var(--accent); font-weight: 600; padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .mcp-table td { padding: .5rem .75rem; border-bottom: 1px solid rgba(255,255,255,.05); color: #cbd5e1; }
+    .mcp-table tr:last-child td { border: none; }
+
+    /* ── Delay helpers ── */
+    .d1{animation-delay:.1s} .d2{animation-delay:.2s} .d3{animation-delay:.3s}
+    .d4{animation-delay:.4s} .d5{animation-delay:.5s} .d6{animation-delay:.6s}
+    .d7{animation-delay:.7s}
+
+    /* ── Scrollable card body ── */
+    .scroll-body { overflow-y: auto; max-height: 55vh; padding-right: .5rem; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
+
+    /* ── Company logos ── */
+    .logo-bar { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 1.8rem; animation: fadeUp .6s both; }
+    .logo-bar img { height: 36px; width: auto; object-fit: contain; filter: brightness(0) invert(1); opacity: .85; transition: opacity .2s; }
+    .logo-bar img:hover { opacity: 1; }
+    .logo-separator { width: 1px; height: 32px; background: var(--border); }
+  </style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- ══════════════════════════════════
+       SLIDE 0 · PORTADA
+  ══════════════════════════════════ -->
+  <section class="slide active" id="s0">
+    <div class="blob" style="width:500px;height:500px;background:radial-gradient(circle,#7c3aed,transparent);top:-100px;left:-100px;animation-duration:14s;"></div>
+    <div class="blob" style="width:400px;height:400px;background:radial-gradient(circle,#0ea5e9,transparent);bottom:-80px;right:-60px;animation-duration:10s;"></div>
+    <div class="particles" id="p0"></div>
+    <div class="pulse-ring" style="width:300px;height:300px;top:50%;left:50%;margin:-150px 0 0 -150px;"></div>
+    <div class="pulse-ring" style="width:300px;height:300px;top:50%;left:50%;margin:-150px 0 0 -150px;animation-delay:1.5s;"></div>
+    <div style="position:relative;z-index:1;text-align:center;">
+
+      <!-- ── Logos de empresa ── -->
+      <div class="logo-bar">
+        <img src="logo-inditex.png" alt="Inditex" title="Inditex" />
+        <div class="logo-separator"></div>
+        <img src="logo-sngular.png" alt="Sngular" title="Sngular" />
+      </div>
+
+      <div class="tag">Inditex · Departamento de Producto</div>
+      <h1 style="margin-bottom:.6rem;">Agentes de IA<br/>para Product Owners</h1>
+      <p class="lead">Cómo los agentes inteligentes optimizan el día a día de un <strong style="color:#f1f5f9;">Product Owner</strong> en Inditex</p>
+      <div style="margin-top:2rem;display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;animation:fadeUp .8s .4s both;">
+        <div style="text-align:center;">
+          <div class="hero-stat" style="font-size:3rem;">🤖</div>
+          <div style="font-size:.78rem;color:#64748b;margin-top:.3rem;">Agentes</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="hero-stat" style="font-size:3rem;">⚡</div>
+          <div style="font-size:.78rem;color:#64748b;margin-top:.3rem;">Automatización</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="hero-stat" style="font-size:3rem;">📈</div>
+          <div style="font-size:.78rem;color:#64748b;margin-top:.3rem;">Productividad</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       SLIDE 1 · CONCEPTOS CLAVE
+  ══════════════════════════════════ -->
+  <section class="slide" id="s1">
+    <div class="blob" style="width:450px;height:450px;background:radial-gradient(circle,#6d28d9,transparent);top:-120px;right:-80px;"></div>
+    <div class="blob" style="width:350px;height:350px;background:radial-gradient(circle,#0284c7,transparent);bottom:-60px;left:-40px;animation-duration:9s;"></div>
+    <div style="position:relative;z-index:1;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="section-title">
+        <div class="tag">Conceptos Clave</div>
+        <h2>Vocabulario esencial de la IA agéntica</h2>
+      </div>
+      <div class="concept-grid">
+        <div class="concept-card d1">
+          <span class="emoji">🧠</span>
+          <h4>LLM</h4>
+          <p>Modelo de Lenguaje Grande. Motor de razonamiento del agente que comprende y genera texto.</p>
+        </div>
+        <div class="concept-card d2">
+          <span class="emoji">🤖</span>
+          <h4>Agente</h4>
+          <p>Sistema autónomo que usa un LLM para razonar, planificar y ejecutar acciones para alcanzar un objetivo.</p>
+        </div>
+        <div class="concept-card d3">
+          <span class="emoji">🔌</span>
+          <h4>MCP</h4>
+          <p>Model Context Protocol. Protocolo estándar para conectar el agente con herramientas y fuentes de datos externas.</p>
+        </div>
+        <div class="concept-card d4">
+          <span class="emoji">📜</span>
+          <h4>Rule (Regla)</h4>
+          <p>Instrucción persistente que moldea el comportamiento del agente en todos sus mensajes.</p>
+        </div>
+        <div class="concept-card d5">
+          <span class="emoji">💬</span>
+          <h4>Prompt</h4>
+          <p>Instrucción o contexto específico que guía al agente hacia un resultado concreto en una tarea.</p>
+        </div>
+        <div class="concept-card d6">
+          <span class="emoji">🛠️</span>
+          <h4>Skill / Herramienta</h4>
+          <p>Grupo de instrucciones, prompts y capacidades específicas que el agente puede utilizar para realizar tareas concretas.</p>
+        </div>
+      </div>
+      <div style="margin-top:1.2rem;animation:fadeUp .6s .8s both;">
+        <a href="https://moya.docs.inditex.dev/moya/latest/getting-started/basic-concepts.html" target="_blank" style="color:var(--accent2);font-size:.8rem;text-decoration:none;opacity:.7;">📚 moya.docs.inditex.dev · Basic Concepts →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       SLIDE 2 · AGENTES DISPONIBLES
+  ══════════════════════════════════ -->
+  <section class="slide" id="s2">
+    <div class="blob" style="width:500px;height:500px;background:radial-gradient(circle,#be185d,transparent);bottom:-150px;right:-100px;animation-duration:13s;"></div>
+    <div class="blob" style="width:400px;height:400px;background:radial-gradient(circle,#1d4ed8,transparent);top:-80px;left:-60px;animation-duration:8s;"></div>
+    <div style="position:relative;z-index:1;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="section-title">
+        <div class="tag">Ecosistema de Agentes</div>
+        <h2>Inditex AI &amp; GitHub Copilot</h2>
+      </div>
+      <div class="grid2" style="max-width:920px;">
+
+        <!-- Inditex AI -->
+        <div class="card" style="animation-delay:.1s;">
+          <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1rem;">
+            <div class="icon-circle ic-purple" style="width:3.5rem;height:3.5rem;font-size:1.8rem;">🏢</div>
+            <div>
+              <h4 style="font-size:1.1rem;color:#f1f5f9;">Inditex AI</h4>
+              <span class="pill pill-purple">Backlog Management</span>
+            </div>
+          </div>
+          <table class="mcp-table">
+            <thead><tr><th>MCP</th><th>Función</th></tr></thead>
+            <tbody>
+              <tr><td>🔵 Confluence</td><td>Documentación y wikis</td></tr>
+              <tr><td>🐛 JIRA</td><td>Tickets y sprints</td></tr>
+              <tr><td>🐙 GitHub</td><td>PRs y código</td></tr>
+              <tr><td>🧩 Geppetto</td><td>Componentes y diseño</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.3rem;">
+            <span class="pill pill-blue">Modo Agente</span>
+            <span class="pill pill-pink">Rules activas</span>
+            <span class="pill pill-purple">Skills habilitadas</span>
+          </div>
+        </div>
+
+        <!-- GitHub Copilot -->
+        <div class="card" style="animation-delay:.25s;">
+          <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1rem;">
+            <div class="icon-circle ic-blue" style="width:3.5rem;height:3.5rem;font-size:1.8rem;">🐙</div>
+            <div>
+              <h4 style="font-size:1.1rem;color:#f1f5f9;">GitHub Copilot</h4>
+              <span class="pill pill-blue">VS Code</span>
+            </div>
+          </div>
+          <div class="row-item" style="margin-bottom:.7rem;">
+            <div class="icon-circle ic-green" style="width:2rem;height:2rem;font-size:.9rem;">📁</div>
+            <div><h4>Reglas globales</h4><p>Configurables a nivel usuario para todos los proyectos</p></div>
+          </div>
+          <div class="row-item" style="margin-bottom:.7rem;">
+            <div class="icon-circle ic-pink" style="width:2rem;height:2rem;font-size:.9rem;">📂</div>
+            <div><h4>Reglas de proyecto</h4><p>Fichero <code style="color:var(--accent);">.github/copilot-instructions.md</code> (DevHub)</p></div>
+          </div>
+          <div class="row-item" style="margin-bottom:0;">
+            <div class="icon-circle ic-purple" style="width:2rem;height:2rem;font-size:.9rem;">📦</div>
+            <div><h4>cac-moyaagentrules</h4><p>Reglas de Inditex disponibles como paquete</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       SLIDE 3 · DEMO PRÁCTICA
+  ══════════════════════════════════ -->
+  <section class="slide" id="s3">
+    <div class="blob" style="width:420px;height:420px;background:radial-gradient(circle,#0f766e,transparent);top:-80px;right:-60px;animation-duration:11s;"></div>
+    <div class="blob" style="width:380px;height:380px;background:radial-gradient(circle,#7c3aed,transparent);bottom:-100px;left:-80px;animation-duration:9s;"></div>
+    <div style="position:relative;z-index:1;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="section-title">
+        <div class="tag">Ejemplo Práctico</div>
+        <h2>Configurar el agente paso a paso</h2>
+      </div>
+      <div class="steps">
+        <div class="step d1">
+          <div class="step-num">1</div>
+          <div>
+            <h4>⚙️ Crear ficha de agente &amp; activar Backlog Management</h4>
+            <p>En Inditex AI, configura el chatmode <em>Backlog Management</em>: activa las skills de Confluence, JIRA, GitHub y Geppetto, y habilita el modo Agente con las Rules correspondientes.</p>
+          </div>
+        </div>
+        <div class="step d2">
+          <div class="step-num">2</div>
+          <div>
+            <h4>📝 Fichero de instrucciones del agente (Prompt de contexto GitHub)</h4>
+            <p>Crea un fichero <code style="color:var(--accent2);">prompt-github.md</code> con la información del repositorio: convenciones de ramas, estilo de commits, estructura del proyecto…</p>
+          </div>
+        </div>
+        <div class="step d3">
+          <div class="step-num">3</div>
+          <div>
+            <h4>📋 Fichero de prompt con contexto de JIRA</h4>
+            <p>Crea <code style="color:var(--accent2);">prompt-jira.md</code> con la definición del proyecto JIRA: tipos de incidencias, criterios de aceptación, convenciones de etiquetado…</p>
+          </div>
+        </div>
+        <div class="step d4">
+          <div class="step-num">4</div>
+          <div>
+            <h4>🚀 Completar Historias de Usuario en JIRA con el agente</h4>
+            <p>Prueba el agente pidiéndole que lea el backlog de JIRA y complete las descripciones de las HUs con criterios de aceptación, estimaciones y notas de implementación automáticamente.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       SLIDE 4 · BENEFICIOS (CHECKLIST)
+  ══════════════════════════════════ -->
+  <section class="slide" id="s4">
+    <div class="blob" style="width:480px;height:480px;background:radial-gradient(circle,#92400e,transparent);top:-100px;right:-80px;animation-duration:12s;"></div>
+    <div class="blob" style="width:360px;height:360px;background:radial-gradient(circle,#1e3a8a,transparent);bottom:-80px;left:-60px;animation-duration:10s;"></div>
+    <div style="position:relative;z-index:1;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="section-title">
+        <div class="tag">Beneficios</div>
+        <h2>Casos de uso para el día a día del PO</h2>
+      </div>
+      <ul class="checklist" id="checklist">
+        <li data-delay="0.05s"><span class="chk">✓</span>📊 Análisis de datos de uso con IA</li>
+        <li data-delay="0.10s"><span class="chk">✓</span>📄 Generación de documentación técnica y de producto</li>
+        <li data-delay="0.15s"><span class="chk">✓</span>🗓️ Resumen de transcripciones de reuniones</li>
+        <li data-delay="0.20s"><span class="chk">✓</span>💡 Generación de hipótesis de mejora de producto</li>
+        <li data-delay="0.25s"><span class="chk">✓</span>🗣️ Procesamiento de feedback de clientes</li>
+        <li data-delay="0.30s"><span class="chk">✓</span>🎨 Generación de código desde prototipos Sewing AI</li>
+        <li data-delay="0.35s"><span class="chk">✓</span>⚙️ Automatización de gestión del backlog</li>
+        <li data-delay="0.40s"><span class="chk">✓</span>🎫 Creación automática de tickets en JIRA</li>
+        <li data-delay="0.45s"><span class="chk">✓</span>🏆 Priorización por datos y objetivos de negocio</li>
+        <li data-delay="0.50s"><span class="chk">✓</span>🔍 Comentarios con conclusiones de grooming</li>
+        <li data-delay="0.55s"><span class="chk">✓</span>🔀 PRs con notas de implementación automáticas</li>
+        <li data-delay="0.60s"><span class="chk">✓</span>⚠️ Identificación de riesgos y dependencias</li>
+      </ul>
+      <!-- Add input and button for dynamic addition -->
+      <div style="margin-top:1rem;text-align:center;">
+        <input type="text" id="new-item-input" placeholder="Añadir nuevo caso de uso..." style="margin-bottom:1rem;padding:.5rem;border:1px solid var(--border);border-radius:.5rem;background:var(--glass);color:#f1f5f9;width:100%;max-width:600px;margin-right:.5rem;">
+        <button id="add-item-btn" style="padding:.5rem 1rem;border:none;border-radius:.5rem;background:var(--accent);color:#fff;cursor:pointer;">Añadir</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       SLIDE 5 · CIERRE
+  ══════════════════════════════════ -->
+  <section class="slide" id="s5">
+    <div class="blob" style="width:500px;height:500px;background:radial-gradient(circle,#4f46e5,transparent);top:-120px;left:-100px;animation-duration:15s;"></div>
+    <div class="blob" style="width:400px;height:400px;background:radial-gradient(circle,#be123c,transparent);bottom:-80px;right:-60px;animation-duration:9s;"></div>
+    <div class="particles" id="p5"></div>
+    <div class="pulse-ring" style="width:320px;height:320px;top:50%;left:50%;margin:-160px 0 0 -160px;"></div>
+    <div class="pulse-ring" style="width:320px;height:320px;top:50%;left:50%;margin:-160px 0 0 -160px;animation-delay:1.5s;"></div>
+    <div style="position:relative;z-index:1;text-align:center;max-width:700px;">
+      <div class="tag">Próximos pasos</div>
+      <h1 style="margin-bottom:.8rem;">¡Empieza hoy<br/>con tu agente! 🚀</h1>
+      <p class="lead" style="margin-bottom:2rem;">Accede a <strong style="color:#f1f5f9;">Inditex AI</strong>, activa el modo <strong style="color:var(--accent);">Backlog Management</strong> e instala <strong style="color:var(--accent2);">GitHub Copilot</strong> en VS Code.</p>
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;animation:fadeUp .7s .3s both;">
+        <div class="card" style="padding:.9rem 1.3rem;text-align:center;min-width:160px;">
+          <div style="font-size:1.8rem;">🤖</div>
+          <div style="font-size:.8rem;color:var(--accent);font-weight:600;margin-top:.4rem;">Inditex AI</div>
+          <div style="font-size:.72rem;color:#64748b;">Backlog Skills</div>
+        </div>
+        <div class="card" style="padding:.9rem 1.3rem;text-align:center;min-width:160px;">
+          <div style="font-size:1.8rem;">🐙</div>
+          <div style="font-size:.8rem;color:var(--accent2);font-weight:600;margin-top:.4rem;">GitHub Copilot</div>
+          <div style="font-size:.72rem;color:#64748b;">VS Code Agent</div>
+        </div>
+        <div class="card" style="padding:.9rem 1.3rem;text-align:center;min-width:160px;">
+          <div style="font-size:1.8rem;">📚</div>
+          <div style="font-size:.8rem;color:var(--accent3);font-weight:600;margin-top:.4rem;">Moya Docs</div>
+          <div style="font-size:.72rem;color:#64748b;">moya.docs.inditex.dev</div>
+        </div>
+      </div>
+
+      <!-- ── Logos de empresa en el cierre ── -->
+      <div class="logo-bar" style="margin-top:2rem;margin-bottom:0;animation-delay:.6s;">
+        <img src="logo-inditex.png" alt="Inditex" style="height:28px;" />
+        <div class="logo-separator"></div>
+        <img src="logo-sngular.png" alt="Sngular" style="height:28px;" />
+      </div>
+
+    </div>
+  </section>
+
+</div><!-- /deck -->
+
+<div id="progress"></div>
+<div id="counter"></div>
+<div id="nav-hints">
+  <span>← →</span> <span>navegar</span>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total   = slides.length;
+  let current   = 0;
+
+  /* ── Progress & counter ── */
+  function updateUI() {
+    document.getElementById('progress').style.width = ((current / (total - 1)) * 100) + '%';
+    document.getElementById('counter').textContent  = (current + 1) + ' / ' + total;
+  }
+
+  /* ── Navigate ── */
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    const dir = idx > current ? 1 : -1;
+    slides[current].classList.remove('active');
+    slides[current].classList.add(dir === 1 ? 'exit-left' : 'exit-right');
+    const prev = current;
+    current = idx;
+    slides[current].classList.remove('exit-left','exit-right');
+    // re-trigger animations
+    void slides[current].offsetWidth;
+    slides[current].classList.add('active');
+    setTimeout(() => { slides[prev].classList.remove('exit-left','exit-right'); }, 550);
+    updateUI();
+  }
+
+  /* ── Keyboard ── */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(current - 1);
+  });
+
+  /* ── Touch / swipe ── */
+  let touchX = null;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend',   e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+    touchX = null;
+  });
+
+  /* ── Checklist ── */
+  document.querySelectorAll('#checklist li').forEach(li => {
+    li.addEventListener('click', () => li.classList.toggle('done'));
+    const d = li.dataset.delay;
+    if (d) li.style.animationDelay = d;
+  });
+
+  // Add functionality for dynamic checklist items
+  let itemDelay = 0.65; // Start delay after existing items
+  document.getElementById('add-item-btn').addEventListener('click', () => {
+    const input = document.getElementById('new-item-input');
+    const text = input.value.trim();
+    if (text) {
+      const li = document.createElement('li');
+      li.setAttribute('data-delay', itemDelay + 's');
+      li.innerHTML = `<span class="chk">✓</span>${text}`;
+      li.style.animationDelay = itemDelay + 's';
+      li.addEventListener('click', () => li.classList.toggle('done'));
+      document.getElementById('checklist').appendChild(li);
+      input.value = '';
+      itemDelay += 0.05; // Increment delay for next item
+    }
+  });
+
+  /* ── Particles generator ── */
+  function makeParticles(containerId, count = 18) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    const colors = ['#a78bfa','#38bdf8','#f472b6','#34d399','#fbbf24'];
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 4 + Math.random() * 6;
+      p.style.cssText = `
+        left:${Math.random()*100}%;
+        width:${size}px; height:${size}px;
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        opacity:0;
+        animation-duration:${8+Math.random()*12}s;
+        animation-delay:${Math.random()*8}s;
+      `;
+      c.appendChild(p);
+    }
+  }
+  makeParticles('p0', 20);
+  makeParticles('p5', 20);
+
+  /* ── Init ── */
+  updateUI();
+</script>
+</body>
+</html>
